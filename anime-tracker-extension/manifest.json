@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Anime Sama Tracker",
+  "version": "1.0.0",
+  "description": "Gère les redirections de domaine pour Anime-Sama et suit les épisodes regardés.",
+  "permissions": [
+    "storage",
+    "webRequest",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background/background.js"
+  },
+      "action": {
+        "default_popup": "popup/popup.html"
+      },
+  "content_scripts": [
+    {
+      "matches": ["*://*.anime-sama.eu/*", "*://*.anime-sama.org/*"],
+      "js": ["content/content_script.js"],
+      "css": ["content/content_style.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "anime-sama-tracker@gemini.dev"
+    }
+  }
+}
