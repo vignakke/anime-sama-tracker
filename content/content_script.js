@@ -29,6 +29,19 @@ async function saveEpisodeProgress(animeTitle, episode) {
     try {
         const result = await storage.sync.get({ animeProgress: {} });
         const animeProgress = result.animeProgress;
+
+        // --- Début de la modification ---
+        const existingProgress = animeProgress[animeTitle];
+        const newEpisodeNumber = parseInt(episode.split(' ')[1], 10);
+
+        if (existingProgress && existingProgress.episode) {
+            const savedEpisodeNumber = parseInt(existingProgress.episode.split(' ')[1], 10);
+            if (newEpisodeNumber <= savedEpisodeNumber) {
+                // Ne pas mettre à jour si l'épisode actuel n'est pas plus récent
+                return;
+            }
+        }
+        // --- Fin de la modification ---
         
         const today = new Date().toLocaleDateString('fr-FR', { year: '2-digit', month: '2-digit', day: '2-digit' });
         const newProgress = {
