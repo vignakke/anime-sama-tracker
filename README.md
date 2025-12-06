@@ -42,7 +42,7 @@ Tu n'as presque rien à faire !
 -   Va sur une page d'épisode sur un site Anime-Sama.
 -   L'extension va automatiquement afficher ta progression à côté du titre de l'animé, comme ça :
     > One Piece (Episode 1088 - 06/12/25)
--   Quand tu changes d'épisode, la progression se met à jour automatiquement.
+-   Quand tu changes d'épisode, la progression se met à jour automatiquement il te suffit juste de rafraîchir la page après avoir terminé ton épisode (f5).
 
 #### Gérer un changement d'adresse
 
