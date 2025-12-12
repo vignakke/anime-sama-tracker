@@ -4,32 +4,57 @@
 .anime-tracker-saved-episode {
     margin-left: 10px;
     font-size: 0.8em;
-    color: #007bff; /* Ou une couleur qui correspond au thème du site */
-    font-weight: normal;
-    background-color: #e9f5ff;
-    padding: 3px 8px;
-    border-radius: 5px;
+    color: #4599ff;
+    font-weight: 600;
+    background: linear-gradient(135deg, #e9f5ff 0%, #d4ecff 100%);
+    padding: 4px 10px;
+    border-radius: 6px;
     vertical-align: middle;
+    display: inline-block;
+    animation: fadeInBadge 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 123, 255, 0.15);
+}
+
+@keyframes fadeInBadge {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Style pour le bouton "Sauvegarder et Rafraîchir" */
 .anime-tracker-save-refresh-btn {
-    background-color: #28a745; /* Vert */
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
     color: white;
     border: none;
-    padding: 8px 15px;
-    border-radius: 5px;
+    padding: 10px 20px;
+    border-radius: 8px;
     cursor: pointer;
     font-size: 14px;
     font-weight: 600;
-    margin-left: 15px; /* Pour espacer du titre ou d'autres éléments */
-    white-space: nowrap; /* Empêche le texte de se casser */
+    margin-left: 15px;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
 }
 
 .anime-tracker-save-refresh-btn:hover {
-    background-color: #218838; /* Vert plus foncé au survol */
+    background: linear-gradient(135deg, #218838 0%, #1aa179 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
 }
 
-/* Vous pouvez ajouter d'autres styles pour positionner le bouton si nécessaire */
-/* Par exemple, si vous voulez le fixer à un certain endroit ou le rendre plus visible */
-/* .anime-tracker-button-container { ... } */
+.anime-tracker-save-refresh-btn:active {
+    transform: translateY(0);
+}
+
+.anime-tracker-save-refresh-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}

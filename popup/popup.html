@@ -3,24 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestionnaire de Redirection</title>
+    <title>Anime Sama Tracker</title>
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
     <div class="container">
-        <h1>Anime Sama Tracker</h1>
+        <header class="header">
+            <h1>Anime Sama Tracker</h1>
+            <button id="theme-toggle" class="theme-toggle" title="Changer de thème">🌙</button>
+        </header>
         
+        <!-- Section: Animes Suivis -->
         <div class="card">
-            <h2>Règles de Redirection</h2>
+            <h2>📺 Animes Suivis</h2>
+            <div id="anime-list-container">
+                <ul id="anime-list">
+                    <!-- Les animes seront injectés ici -->
+                </ul>
+            </div>
+            <p id="anime-empty-message" class="empty-message" style="display: none;">Aucun anime suivi pour le moment.</p>
+        </div>
+
+        <!-- Section: Règles de Redirection -->
+        <div class="card">
+            <h2>🔀 Règles de Redirection</h2>
             
             <form id="redirect-form">
                 <div class="form-group">
                     <label for="from-domain">Ancien domaine :</label>
-                    <input type="text" id="from-domain" placeholder="e.g., anime-sama.org" required>
+                    <input type="text" id="from-domain" placeholder="e.g., anime-sama.org" required pattern="^[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}$" title="Entrez un domaine valide (ex: anime-sama.org)">
                 </div>
                 <div class="form-group">
                     <label for="to-domain">Nouveau domaine :</label>
-                    <input type="text" id="to-domain" placeholder="e.g., anime-sama.eu" required>
+                    <input type="text" id="to-domain" placeholder="e.g., anime-sama.eu" required pattern="^[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}$" title="Entrez un domaine valide (ex: anime-sama.eu)">
                 </div>
                 <button type="submit">Ajouter la règle</button>
             </form>
@@ -33,10 +48,14 @@
             </div>
         </div>
 
+        <!-- Section: Export/Import -->
         <div class="card">
-            <h2>Suivi des Épisodes</h2>
-            <p>Le suivi est automatique. Rendez-vous sur une page d'anime pour voir l'épisode sauvegardé.</p>
-            <p>Utilisez le bouton sur la page pour sauvegarder votre progression après avoir changé d'épisode.</p>
+            <h2>💾 Données</h2>
+            <div class="button-group">
+                <button id="export-btn" class="secondary-btn">📤 Exporter</button>
+                <button id="import-btn" class="secondary-btn">📥 Importer</button>
+                <input type="file" id="import-file" accept=".json" style="display: none;">
+            </div>
         </div>
     </div>
     <script src="popup.js"></script>
