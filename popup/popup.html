@@ -1,63 +1,57 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Anime Sama Tracker</title>
     <link rel="stylesheet" href="popup.css">
 </head>
+
 <body>
     <div class="container">
         <header class="header">
-            <h1>Anime Sama Tracker</h1>
-            <button id="theme-toggle" class="theme-toggle" title="Changer de thème">🌙</button>
+            <h1>Anime Tracker <span style="font-size:0.5em; opacity:0.7">v2</span></h1>
+            <button id="theme-toggle" class="theme-toggle" title="Thème">🌙</button>
         </header>
-        
-        <!-- Section: Animes Suivis -->
+
+        <!-- Animes List -->
         <div class="card">
-            <h2>📺 Animes Suivis</h2>
+            <h2>📺 Mes Animes</h2>
             <div id="anime-list-container">
-                <ul id="anime-list">
-                    <!-- Les animes seront injectés ici -->
-                </ul>
+                <ul id="anime-list"></ul>
             </div>
-            <p id="anime-empty-message" class="empty-message" style="display: none;">Aucun anime suivi pour le moment.</p>
+            <p id="anime-empty-message" class="empty-message" style="display: none;">Aucun anime suivi.</p>
         </div>
 
-        <!-- Section: Règles de Redirection -->
+        <!-- Redirect Rules -->
         <div class="card">
-            <h2>🔀 Règles de Redirection</h2>
-            
+            <h2>🔀 Redirections</h2>
             <form id="redirect-form">
-                <div class="form-group">
-                    <label for="from-domain">Ancien domaine :</label>
-                    <input type="text" id="from-domain" placeholder="e.g., anime-sama.org" required pattern="^[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}$" title="Entrez un domaine valide (ex: anime-sama.org)">
+                <div class="form-row">
+                    <input type="text" id="from-domain" placeholder="Ancien (ex: anime-sama.me)" required
+                        pattern="[a-zA-Z0-9][a-zA-Z0-9-]*[.]+[a-zA-Z]{2,}" title="Domaine sans http (ex: site.com)">
+                    <span class="arrow">➜</span>
+                    <input type="text" id="to-domain" placeholder="Nouveau (ex: anime-sama.fr)" required
+                        pattern="[a-zA-Z0-9][a-zA-Z0-9-]*[.]+[a-zA-Z]{2,}" title="Domaine sans http (ex: site.com)">
                 </div>
-                <div class="form-group">
-                    <label for="to-domain">Nouveau domaine :</label>
-                    <input type="text" id="to-domain" placeholder="e.g., anime-sama.eu" required pattern="^[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}$" title="Entrez un domaine valide (ex: anime-sama.eu)">
-                </div>
-                <button type="submit">Ajouter la règle</button>
+                <button type="submit" class="add-btn">Ajouter</button>
             </form>
-            
-            <div id="rules-list-container">
-                <h3>Règles Actives</h3>
-                <ul id="rules-list">
-                    <!-- Les règles seront injectées ici -->
-                </ul>
-            </div>
+            <ul id="rules-list"></ul>
         </div>
 
-        <!-- Section: Export/Import -->
+        <!-- Tools -->
         <div class="card">
-            <h2>💾 Données</h2>
+            <h2>🛠️ Outils</h2>
             <div class="button-group">
-                <button id="export-btn" class="secondary-btn">📤 Exporter</button>
-                <button id="import-btn" class="secondary-btn">📥 Importer</button>
+                <button id="scan-fix-btn" class="action-btn fix-btn">🚑 Scanner & Réparer les liens</button>
+                <button id="export-btn" class="action-btn">📤 Export</button>
+                <button id="import-btn" class="action-btn">📥 Import</button>
                 <input type="file" id="import-file" accept=".json" style="display: none;">
             </div>
         </div>
     </div>
     <script src="popup.js"></script>
 </body>
+
 </html>

@@ -1,283 +1,229 @@
-//- Gère l'interface du popup pour les règles de redirection et le suivi des animes.
+// --- Anime Sama Tracker V2: Popup Logic ---
 
 const storage = typeof browser !== 'undefined' ? browser.storage : chrome.storage;
 
 document.addEventListener('DOMContentLoaded', () => {
-    const redirectForm = document.getElementById('redirect-form');
-    const rulesList = document.getElementById('rules-list');
-    const animeList = document.getElementById('anime-list');
-    const animeEmptyMessage = document.getElementById('anime-empty-message');
-    const themeToggle = document.getElementById('theme-toggle');
-    const exportBtn = document.getElementById('export-btn');
-    const importBtn = document.getElementById('import-btn');
-    const importFile = document.getElementById('import-file');
-
-    // === THÈME SOMBRE ===
-    const loadTheme = () => {
-        storage.local.get({ darkTheme: false }, (result) => {
-            if (result.darkTheme) {
-                document.body.classList.add('dark-theme');
-                themeToggle.textContent = '☀️';
-            } else {
-                document.body.classList.remove('dark-theme');
-                themeToggle.textContent = '🌙';
-            }
-        });
+    // Elements
+    const els = {
+        animeList: document.getElementById('anime-list'),
+        emptyMsg: document.getElementById('anime-empty-message'),
+        rulesList: document.getElementById('rules-list'),
+        form: document.getElementById('redirect-form'),
+        themeToggle: document.getElementById('theme-toggle'),
+        scanFixBtn: document.getElementById('scan-fix-btn'),
+        exportBtn: document.getElementById('export-btn'),
+        importBtn: document.getElementById('import-btn'),
+        importFile: document.getElementById('import-file')
     };
 
-    themeToggle.addEventListener('click', () => {
-        const isDark = document.body.classList.toggle('dark-theme');
-        themeToggle.textContent = isDark ? '☀️' : '🌙';
-        storage.local.set({ darkTheme: isDark });
-    });
+    // --- State & Rendering ---
 
-    // === LISTE DES ANIMES ===
-    const loadAnimes = () => {
-        storage.sync.get({ animeProgress: {} }, (result) => {
-            const animes = result.animeProgress;
-            animeList.innerHTML = '';
+    const renderAnimes = (animes, rules) => {
+        els.animeList.innerHTML = '';
+        const entries = Object.entries(animes || {});
 
-            const entries = Object.entries(animes);
-            if (entries.length === 0) {
-                animeEmptyMessage.style.display = 'block';
-                return;
-            }
-
-            animeEmptyMessage.style.display = 'none';
-
-            // Trie par date la plus récente
-            entries.sort((a, b) => {
-                const dateA = parseDate(a[1].date);
-                const dateB = parseDate(b[1].date);
-                return dateB - dateA;
-            });
-
-            entries.forEach(([key, progress]) => {
-                const listItem = document.createElement('li');
-                listItem.classList.add('anime-item');
-
-                const animeInfo = document.createElement('div');
-                animeInfo.classList.add('anime-info');
-
-                // Parse "Titre | Saison X" format
-                const parts = key.split(' | ');
-                const animeTitle = parts[0];
-                const season = parts[1] || null;
-
-                const titleEl = document.createElement('span');
-                titleEl.classList.add('anime-title');
-                titleEl.textContent = animeTitle;
-                titleEl.title = key;
-
-                const episodeEl = document.createElement('span');
-                episodeEl.classList.add('anime-episode');
-                let episodeText = '';
-                if (season) {
-                    episodeText += `${season} • `;
-                }
-                if (typeof progress === 'object' && progress.episode) {
-                    episodeText += `${progress.episode} • ${progress.date || ''}`;
-                } else {
-                    episodeText += progress;
-                }
-                episodeEl.textContent = episodeText;
-
-                animeInfo.appendChild(titleEl);
-                animeInfo.appendChild(episodeEl);
-
-                const deleteButton = document.createElement('button');
-                deleteButton.textContent = '×';
-                deleteButton.classList.add('delete-btn');
-                deleteButton.title = 'Supprimer cet anime';
-
-                deleteButton.addEventListener('click', () => {
-                    deleteAnime(key); // Use full key for deletion
-                });
-
-                listItem.appendChild(animeInfo);
-                listItem.appendChild(deleteButton);
-                animeList.appendChild(listItem);
-            });
-        });
-    };
-
-    // Parse date FR format (DD/MM/YY)
-    const parseDate = (dateStr) => {
-        if (!dateStr) return new Date(0);
-        const parts = dateStr.split('/');
-        if (parts.length === 3) {
-            return new Date(`20${parts[2]}`, parts[1] - 1, parts[0]);
-        }
-        return new Date(0);
-    };
-
-    // Supprime un anime
-    const deleteAnime = (title) => {
-        if (!confirm(`Supprimer "${title}" de votre liste ?`)) return;
-
-        storage.sync.get({ animeProgress: {} }, (result) => {
-            const animes = result.animeProgress;
-            delete animes[title];
-            storage.sync.set({ animeProgress: animes }, () => {
-                storage.local.set({ animeProgress: animes });
-                loadAnimes();
-            });
-        });
-    };
-
-    // === RÈGLES DE REDIRECTION ===
-    const loadRules = () => {
-        storage.sync.get({ redirectRules: [] }, (result) => {
-            const rules = result.redirectRules;
-            rulesList.innerHTML = '';
-
-            if (rules.length === 0) {
-                rulesList.innerHTML = '<li class="empty-item">Aucune règle active.</li>';
-                return;
-            }
-
-            rules.forEach((rule, index) => {
-                const listItem = document.createElement('li');
-                const ruleDetails = document.createElement('div');
-                ruleDetails.classList.add('rule-details');
-                ruleDetails.innerHTML = `<span>${rule.from}</span> &rarr; <span>${rule.to}</span>`;
-
-                const deleteButton = document.createElement('button');
-                deleteButton.textContent = '×';
-                deleteButton.classList.add('delete-btn');
-                deleteButton.title = 'Supprimer cette règle';
-
-                deleteButton.addEventListener('click', () => {
-                    deleteRule(index);
-                });
-
-                listItem.appendChild(ruleDetails);
-                listItem.appendChild(deleteButton);
-                rulesList.appendChild(listItem);
-            });
-        });
-    };
-
-    // Validation de domaine
-    const isValidDomain = (domain) => {
-        const regex = /^[a-zA-Z0-9][a-zA-Z0-9-]*(\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}$/;
-        return regex.test(domain);
-    };
-
-    // Ajoute une nouvelle règle
-    redirectForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const fromDomain = document.getElementById('from-domain').value.trim();
-        const toDomain = document.getElementById('to-domain').value.trim();
-
-        if (!isValidDomain(fromDomain) || !isValidDomain(toDomain)) {
-            alert('Veuillez entrer des domaines valides (ex: anime-sama.org)');
+        if (entries.length === 0) {
+            els.emptyMsg.style.display = 'block';
             return;
         }
+        els.emptyMsg.style.display = 'none';
 
-        if (fromDomain && toDomain) {
-            storage.sync.get({ redirectRules: [] }, (result) => {
-                const rules = result.redirectRules;
-                if (!rules.some(rule => rule.from === fromDomain && rule.to === toDomain)) {
-                    rules.push({ from: fromDomain, to: toDomain });
-                    storage.sync.set({ redirectRules: rules }, () => {
-                        loadRules();
-                        redirectForm.reset();
-                    });
-                } else {
-                    alert('Cette règle existe déjà.');
-                }
-            });
-        }
-    });
+        // Sort by date (Newest first)
+        entries.sort((a, b) => parseDate(b[1].date) - parseDate(a[1].date));
 
-    // Supprime une règle
-    const deleteRule = (ruleIndex) => {
-        storage.sync.get({ redirectRules: [] }, (result) => {
-            let rules = result.redirectRules;
-            rules.splice(ruleIndex, 1);
-            storage.sync.set({ redirectRules: rules }, () => {
-                loadRules();
+        entries.forEach(([key, progress]) => {
+            const li = document.createElement('li');
+            li.className = 'anime-item';
+
+            // Resolve URL with Rules
+            let url = progress.url;
+            if (url) {
+                rules.forEach(r => {
+                    if (url.includes(r.from)) url = url.replace(r.from, r.to);
+                });
+            }
+
+            const [title, season] = key.split(' | ');
+
+            li.innerHTML = `
+                <div class="anime-info">
+                    ${url ? `<a href="${url}" target="_blank" class="anime-title" title="${key}">${title}</a>`
+                    : `<span class="anime-title" title="${key}">${title}</span>`}
+                    <span class="anime-meta">
+                        ${season ? season + ' • ' : ''}
+                        ${progress.episode || progress} • ${progress.date || ''}
+                    </span>
+                </div>
+            `;
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'delete-btn';
+            delBtn.innerHTML = '×';
+            delBtn.onclick = () => confirm(`Supprimer "${title}" ?`) && deleteAnime(key);
+
+            li.appendChild(delBtn);
+            els.animeList.appendChild(li);
+        });
+    };
+
+    const renderRules = (rules) => {
+        els.rulesList.innerHTML = '';
+        rules.forEach((rule, idx) => {
+            const li = document.createElement('li');
+            li.innerHTML = `<span>${rule.from} &rarr; ${rule.to}</span>`;
+
+            const btn = document.createElement('button');
+            btn.className = 'delete-btn';
+            btn.innerHTML = '×';
+            btn.onclick = () => deleteRule(idx);
+
+            li.appendChild(btn);
+            els.rulesList.appendChild(li);
+        });
+    };
+
+    // --- Actions ---
+
+    const loadData = () => {
+        storage.sync.get(['animeProgress', 'redirectRules'], (res) => {
+            renderAnimes(res.animeProgress, res.redirectRules || []);
+            renderRules(res.redirectRules || []);
+        });
+    };
+
+    const deleteAnime = (key) => {
+        storage.sync.get(['animeProgress'], (res) => {
+            const data = res.animeProgress;
+            delete data[key];
+            storage.sync.set({ animeProgress: data }, () => {
+                storage.local.set({ animeProgress: data }); // Sync local mirror
+                loadData();
             });
         });
     };
 
-    // === EXPORT / IMPORT ===
-    exportBtn.addEventListener('click', () => {
-        storage.sync.get(['animeProgress', 'redirectRules'], (result) => {
-            const data = {
-                version: 1,
-                exportDate: new Date().toISOString(),
-                animeProgress: result.animeProgress || {},
-                redirectRules: result.redirectRules || []
-            };
+    const deleteRule = (idx) => {
+        storage.sync.get(['redirectRules'], (res) => {
+            const rules = res.redirectRules;
+            rules.splice(idx, 1);
+            storage.sync.set({ redirectRules: rules }, loadData);
+        });
+    };
 
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `anime-sama-tracker-backup-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+    // --- Repair Logic (Global Scan) ---
+    els.scanFixBtn.addEventListener('click', () => {
+        chrome.tabs.query({}, (tabs) => {
+            if (!tabs.length) return alert("Aucun onglet ouvert.");
+
+            storage.sync.get(['animeProgress'], (res) => {
+                const animes = res.animeProgress || {};
+                let fixed = 0;
+                let details = [];
+
+                tabs.forEach(tab => {
+                    const tTitle = (tab.title || "").toLowerCase();
+                    const tUrl = tab.url;
+
+                    Object.keys(animes).forEach(key => {
+                        const entry = animes[key];
+                        // Extract "One Piece" from "One Piece | Saison 1"
+                        const name = key.split('|')[0].trim().toLowerCase();
+
+                        // Strict check: Name must be long enough to avoid false positives
+                        if (name.length < 3) return;
+
+                        // Match logic: Title contains Name OR Name contains Title fragment
+                        if (tTitle.includes(name) || name.includes(tTitle)) {
+                            // Update if missing or different
+                            if (entry.url !== tUrl) {
+                                entry.url = tUrl;
+                                if (!details.includes(key)) {
+                                    fixed++;
+                                    details.push(key);
+                                }
+                            }
+                        }
+                    });
+                });
+
+                if (fixed > 0) {
+                    storage.sync.set({ animeProgress: animes }, () => {
+                        storage.local.set({ animeProgress: animes });
+                        loadData();
+                        alert(`✅ ${fixed} animes mis à jour via vos onglets ouverts !\n(${details.join(', ')})`);
+                    });
+                } else {
+                    alert("Aucune correspondance trouvée dans vos onglets ouverts.");
+                }
+            });
         });
     });
 
-    importBtn.addEventListener('click', () => {
-        importFile.click();
+    // --- Form & Theme ---
+
+    els.form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const from = document.getElementById('from-domain').value.trim();
+        const to = document.getElementById('to-domain').value.trim();
+
+        storage.sync.get({ redirectRules: [] }, (res) => {
+            const rules = res.redirectRules;
+            if (rules.some(r => r.from === from && r.to === to)) return alert("Règle déjà existante.");
+
+            rules.push({ from, to });
+            storage.sync.set({ redirectRules: rules }, () => {
+                els.form.reset();
+                loadData();
+            });
+        });
     });
 
-    importFile.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    // Theme logic
+    const toggleTheme = () => {
+        const isDark = document.body.classList.toggle('dark-theme');
+        els.themeToggle.textContent = isDark ? '☀️' : '🌙';
+        storage.local.set({ darkTheme: isDark });
+    };
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
+    storage.local.get({ darkTheme: false }, r => {
+        if (r.darkTheme) toggleTheme();
+    });
+    els.themeToggle.onclick = toggleTheme;
+
+    // Export/Import (Standard)
+    els.exportBtn.onclick = () => {
+        storage.sync.get(null, (data) => {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'anime-tracker-backup.json';
+            a.click();
+        });
+    };
+    els.importBtn.onclick = () => els.importFile.click();
+    els.importFile.onchange = (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = (ev) => {
             try {
-                const data = JSON.parse(event.target.result);
-
-                if (!data.animeProgress && !data.redirectRules) {
-                    alert('Fichier invalide: données manquantes.');
-                    return;
-                }
-
-                const confirmMsg = `Importer les données ?\n\n` +
-                    `- ${Object.keys(data.animeProgress || {}).length} animes\n` +
-                    `- ${(data.redirectRules || []).length} règles de redirection\n\n` +
-                    `⚠️ Cela remplacera vos données actuelles.`;
-
-                if (!confirm(confirmMsg)) return;
-
-                const toSave = {};
-                if (data.animeProgress) toSave.animeProgress = data.animeProgress;
-                if (data.redirectRules) toSave.redirectRules = data.redirectRules;
-
-                storage.sync.set(toSave, () => {
-                    storage.local.set(toSave, () => {
-                        loadAnimes();
-                        loadRules();
-                        alert('Import réussi !');
+                const d = JSON.parse(ev.target.result);
+                if (confirm("Importer ? Cela écrasera les données actuelles.")) {
+                    storage.sync.set(d, () => {
+                        storage.local.set(d);
+                        location.reload();
                     });
-                });
-            } catch (err) {
-                alert('Erreur lors de la lecture du fichier: ' + err.message);
-            }
+                }
+            } catch (err) { alert("Fichier invalide"); }
         };
-        reader.readAsText(file);
-        importFile.value = ''; // Reset pour permettre de réimporter le même fichier
-    });
+        r.readAsText(f);
+    };
 
-    // Écoute les changements
-    storage.onChanged.addListener((changes, namespace) => {
-        if (namespace === 'sync') {
-            if (changes.redirectRules) loadRules();
-            if (changes.animeProgress) loadAnimes();
-        }
-    });
+    // Utils
+    const parseDate = (d) => {
+        if (!d) return 0;
+        const p = d.split('/');
+        return p.length === 3 ? new Date(`20${p[2]}`, p[1] - 1, p[0]) : 0;
+    };
 
-    // Chargement initial
-    loadTheme();
-    loadAnimes();
-    loadRules();
+    loadData();
 });

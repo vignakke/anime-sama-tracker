@@ -1,238 +1,173 @@
-//- Script de contenu pour l'enregistrement et l'affichage des épisodes.
+// --- Anime Sama Tracker V2: Content Script ---
 
-// Guard: Évite les injections multiples
+// Guard to prevent multiple injections
 if (window.__animeTrackerInjected) {
-    // Script déjà injecté, on s'arrête
+    // Already running
 } else {
     window.__animeTrackerInjected = true;
-
     const storage = typeof browser !== 'undefined' ? browser.storage : chrome.storage;
 
-    // Fonction pour extraire le numéro d'épisode de façon robuste
+    // --- Helpers ---
+
     function parseEpisodeNumber(episodeStr) {
         if (!episodeStr) return null;
-        // Cherche le premier nombre dans la chaîne (supporte "Episode 5", "Ep 5", "5", "E05", etc.)
+        // Matches "Episode 05", "Ep 5", "5", "E05"
         const match = episodeStr.match(/(\d+)/);
         return match ? parseInt(match[1], 10) : null;
     }
 
-    // Fonction pour récupérer le titre de l'anime (sans saison)
-    function getAnimeBaseTitle() {
-        const titleElement = document.getElementById('titreOeuvre');
-        if (titleElement) {
-            // Récupère le texte sans le badge de progression
-            const clone = titleElement.cloneNode(true);
-            const badge = clone.querySelector('.anime-tracker-saved-episode');
-            if (badge) badge.remove();
-            return clone.innerText.trim();
-        }
-        return null;
-    }
-
-    // Fonction pour récupérer la saison
-    function getAnimeSeason() {
-        const seasonElement = document.getElementById('avOeuvre');
-        if (seasonElement) {
-            return seasonElement.innerText.trim();
-        }
-        return null;
-    }
-
-    // Fonction pour récupérer la clé unique (titre + saison)
     function getAnimeKey() {
-        const baseTitle = getAnimeBaseTitle();
-        const season = getAnimeSeason();
-        if (!baseTitle) return null;
+        const titleEl = document.getElementById('titreOeuvre');
+        const seasonEl = document.getElementById('avOeuvre');
+        if (!titleEl) return null;
 
-        if (season) {
-            return `${baseTitle} | ${season}`;
-        }
-        return baseTitle;
+        // Remove badge from title if present
+        const clone = titleEl.cloneNode(true);
+        const badge = clone.querySelector('.anime-tracker-saved-episode');
+        if (badge) badge.remove();
+
+        const baseTitle = clone.innerText.trim();
+        const season = seasonEl ? seasonEl.innerText.trim() : null;
+
+        return season ? `${baseTitle} | ${season}` : baseTitle;
     }
 
-    // Fonction pour récupérer l'épisode actuellement affiché sur la page
     function getCurrentEpisode() {
-        const episodeElement = document.getElementById('savedEpisodeId');
-        if (episodeElement) {
-            return episodeElement.innerText.trim();
-        }
-        return null;
+        const el = document.getElementById('savedEpisodeId');
+        return el ? el.innerText.trim() : null;
     }
 
-    // Fonction pour sauvegarder la progression de l'épisode
-    async function saveEpisodeProgress(animeKey, episode) {
-        if (!animeKey || !episode) {
-            return;
-        }
+    // --- Core Logic ---
+
+    async function saveEpisodeProgress(animeKey, episode, url) {
+        if (!animeKey || !episode) return;
 
         try {
-            const result = await storage.sync.get({ animeProgress: {} });
-            const animeProgress = result.animeProgress;
+            const data = await storage.sync.get({ animeProgress: {} });
+            const animeProgress = data.animeProgress;
+            const existing = animeProgress[animeKey];
 
-            const existingProgress = animeProgress[animeKey];
-            const newEpisodeNumber = parseEpisodeNumber(episode);
+            const newEpNum = parseEpisodeNumber(episode);
 
-            if (existingProgress && existingProgress.episode) {
-                const savedEpisodeNumber = parseEpisodeNumber(existingProgress.episode);
-                if (newEpisodeNumber !== null && savedEpisodeNumber !== null && newEpisodeNumber <= savedEpisodeNumber) {
-                    // Ne pas mettre à jour si l'épisode actuel n'est pas plus récent
-                    return;
+            // Default: Use new data
+            let finalEpisode = episode;
+            let finalDate = new Date().toLocaleDateString('fr-FR', { year: '2-digit', month: '2-digit', day: '2-digit' });
+            let finalUrl = url || window.location.href;
+
+            if (existing && existing.episode) {
+                const savedEpNum = parseEpisodeNumber(existing.episode);
+
+                // If current episode is older than saved one
+                if (newEpNum !== null && savedEpNum !== null && newEpNum < savedEpNum) {
+                    // PRESERVE historical progress
+                    finalEpisode = existing.episode;
+                    finalDate = existing.date;
+                    // BUT UPDATE URL (to ensure link is valid/current)
+                    // finalUrl is already set to current page URL above
                 }
             }
 
-            const today = new Date().toLocaleDateString('fr-FR', { year: '2-digit', month: '2-digit', day: '2-digit' });
-            const newProgress = {
-                episode: episode,
-                date: today
-            };
+            const newProgress = { episode: finalEpisode, date: finalDate, url: finalUrl };
 
-            if (JSON.stringify(animeProgress[animeKey]) === JSON.stringify(newProgress)) {
-                return;
-            }
+            // Optimization: Don't save if identical
+            if (JSON.stringify(animeProgress[animeKey]) === JSON.stringify(newProgress)) return;
 
+            // Save
             animeProgress[animeKey] = newProgress;
-
             await Promise.all([
-                storage.sync.set({ animeProgress: animeProgress }),
-                storage.local.set({ animeProgress: animeProgress })
+                storage.sync.set({ animeProgress }),
+                storage.local.set({ animeProgress })
             ]);
-        } catch (error) {
-            console.error('[Content Script] Erreur lors de la sauvegarde de la progression:', error);
+
+        } catch (err) {
+            console.error('[AnimeTracker] Save failed:', err);
         }
     }
 
-    // Fonction pour afficher le dernier épisode sauvegardé à côté du titre
     async function displaySavedEpisode(animeKey) {
-        if (!animeKey) {
-            return;
-        }
+        if (!animeKey) return;
+        const data = await storage.local.get({ animeProgress: {} });
+        const progress = data.animeProgress[animeKey];
 
-        try {
-            const result = await storage.local.get({ animeProgress: {} });
-            const animeProgress = result.animeProgress;
-            const savedProgress = animeProgress[animeKey];
+        const titleEl = document.getElementById('titreOeuvre');
+        if (!titleEl) return;
 
-            const titleElement = document.getElementById('titreOeuvre');
-            if (!titleElement) return;
+        // Clean existing
+        titleEl.querySelectorAll('.anime-tracker-saved-episode').forEach(el => el.remove());
 
-            // Supprime TOUS les badges existants (évite les doublons causés par race conditions)
-            const existingSpans = titleElement.querySelectorAll('.anime-tracker-saved-episode');
-            existingSpans.forEach(span => span.remove());
+        if (progress) {
+            const span = document.createElement('span');
+            span.classList.add('anime-tracker-saved-episode');
 
-            if (savedProgress) {
-                const span = document.createElement('span');
-                span.classList.add('anime-tracker-saved-episode');
-
-                if (typeof savedProgress === 'object' && savedProgress.episode && savedProgress.date) {
-                    span.textContent = ` (${savedProgress.episode} - ${savedProgress.date})`;
-                } else {
-                    span.textContent = ` (Dernier : ${savedProgress})`;
-                }
-
-                titleElement.appendChild(span);
-            }
-        } catch (error) {
-            console.error("[Content Script] Erreur lors de l'affichage de l'épisode sauvegardé:", error);
-        }
-    }
-
-    // Fonction pour injecter le bouton "Sauvegarder et Rafraîchir"
-    function injectSaveRefreshButton() {
-        const titleElement = document.getElementById('titreOeuvre');
-
-        if (titleElement && !document.getElementById('anime-tracker-refresh-btn')) {
-            const button = document.createElement('button');
-            button.id = 'anime-tracker-refresh-btn';
-            button.classList.add('anime-tracker-save-refresh-btn');
-            button.textContent = 'Refresh pour sauvegarder dernier episode';
-            button.title = 'Cliquez ici pour sauvegarder le dernier épisode sélectionné et rafraîchir la page.';
-
-            const targetElement = document.getElementById('printLastEpisode');
-            const buttonWrapper = document.createElement('div');
-            buttonWrapper.style.marginTop = '10px';
-            buttonWrapper.style.marginBottom = '20px';
-            buttonWrapper.style.textAlign = 'center';
-            buttonWrapper.appendChild(button);
-
-            if (targetElement) {
-                targetElement.parentNode.insertBefore(buttonWrapper, targetElement.nextSibling);
+            if (typeof progress === 'object' && progress.episode) {
+                span.textContent = ` (${progress.episode} - ${progress.date})`;
             } else {
-                titleElement.parentNode.insertBefore(buttonWrapper, titleElement.nextSibling);
+                span.textContent = ` (Dernier : ${progress})`; // Backwards compatibility
             }
-
-            button.addEventListener('click', (e) => {
-                button.disabled = true;
-                e.stopPropagation();
-                location.reload();
-            });
+            titleEl.appendChild(span);
         }
     }
 
-    // Exécution principale de la logique
-    async function mainContentScriptLogic() {
-        const animeKey = getAnimeKey();
-        const currentEpisode = getCurrentEpisode();
+    function injectRefreshButton() {
+        const titleEl = document.getElementById('titreOeuvre');
+        if (!titleEl || document.getElementById('anime-tracker-refresh-btn')) return;
 
-        if (animeKey && currentEpisode) {
-            await saveEpisodeProgress(animeKey, currentEpisode);
-            await displaySavedEpisode(animeKey);
-        } else if (animeKey) {
-            await displaySavedEpisode(animeKey);
-        }
+        const btn = document.createElement('button');
+        btn.id = 'anime-tracker-refresh-btn';
+        btn.classList.add('anime-tracker-save-refresh-btn');
+        btn.textContent = '↻ Sauvegarder & Rafraîchir';
+        btn.title = 'Force la sauvegarde de cet épisode (et met à jour le lien)';
+
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            btn.disabled = true;
+            btn.textContent = '...';
+            location.reload();
+        };
+
+        const wrapper = document.createElement('div');
+        Object.assign(wrapper.style, { marginTop: '10px', marginBottom: '20px', textAlign: 'center' });
+        wrapper.appendChild(btn);
+
+        const target = document.getElementById('printLastEpisode');
+        if (target) target.parentNode.insertBefore(wrapper, target.nextSibling);
+        else titleEl.parentNode.insertBefore(wrapper, titleEl.nextSibling);
+    }
+
+    // --- Initialization ---
+
+    async function init() {
+        const animeKey = getAnimeKey();
+        const currentEp = getCurrentEpisode();
 
         if (animeKey) {
-            injectSaveRefreshButton();
+            if (currentEp) {
+                await saveEpisodeProgress(animeKey, currentEp, window.location.href);
+            }
+            await displaySavedEpisode(animeKey);
+            injectRefreshButton();
         }
     }
 
-    // --- Logique d'Initialisation Robuste ---
-
-    function initialize() {
-        const titleElement = document.getElementById('titreOeuvre');
-        const episodeElement = document.getElementById('savedEpisodeId');
-
-        if (titleElement && episodeElement) {
-            mainContentScriptLogic();
-            return;
-        }
-
-        const observer = new MutationObserver((mutations, obs) => {
-            const titleElement = document.getElementById('titreOeuvre');
-            const episodeElement = document.getElementById('savedEpisodeId');
-
-            if (titleElement && episodeElement) {
-                obs.disconnect();
-                mainContentScriptLogic();
-            }
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-
-        // Timeout: Déconnecte l'observer après 10 secondes pour éviter les fuites de mémoire
-        setTimeout(() => {
-            observer.disconnect();
-        }, 10000);
-    }
-
-    initialize();
-
-
-    // Écoute les changements dans le stockage pour mettre à jour l'UI en temps réel
-    storage.onChanged.addListener((changes, namespace) => {
-        if (namespace === 'local' && changes.animeProgress) {
-            const animeKey = getAnimeKey();
-            if (!animeKey) return;
-
-            const oldValue = changes.animeProgress.oldValue ? changes.animeProgress.oldValue[animeKey] : undefined;
-            const newValue = changes.animeProgress.newValue ? changes.animeProgress.newValue[animeKey] : undefined;
-
-            if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
-                displaySavedEpisode(animeKey);
-            }
+    // Observer for dynamic content loading
+    const observer = new MutationObserver((mutations, obs) => {
+        if (document.getElementById('titreOeuvre')) {
+            obs.disconnect();
+            init();
         }
     });
 
-} // End of injection guard
+    if (document.getElementById('titreOeuvre')) {
+        init();
+    } else {
+        observer.observe(document.body, { childList: true, subtree: true });
+        setTimeout(() => observer.disconnect(), 10000); // 10s fallback
+    }
+
+    // Live UI updates
+    storage.onChanged.addListener((changes, namespace) => {
+        if (namespace === 'local' && changes.animeProgress && getAnimeKey()) {
+            displaySavedEpisode(getAnimeKey());
+        }
+    });
+}
